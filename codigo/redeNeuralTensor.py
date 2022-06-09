@@ -8,16 +8,13 @@ import tensorflow as tf
 
 from keras import layers
 from keras import models
-from IPython import display
 
-# Seta os valores sementes para experimentar reproducibilidade
 seed = 42
 tf.random.set_seed(seed)
 np.random.seed(seed)
 
 DATASET_PATH = 'data/mini_speech_commands'
 
-# Caso não haja a base de dados no sistema, realizar a importação
 data_dir = pathlib.Path(DATASET_PATH)
 if not data_dir.exists():
     tf.keras.utils.get_file(
@@ -26,42 +23,36 @@ if not data_dir.exists():
         extract=True,
         cache_dir='.', cache_subdir='data')
 
-# Criação de um array com as principais palavras faladas contidas na base de dados
 commands = np.array(tf.io.gfile.listdir(str(data_dir)))
 commands = commands[commands != 'README.md']
-print('Commands:', commands)
+print('Comandos:', commands)
 
-# Todos os áudios serão extraídos em embaralhados na lista 'filenames'
 filenames = tf.io.gfile.glob(str(data_dir) + '/*/*')
 filenames = tf.random.shuffle(filenames)
 num_samples = len(filenames)
-print('Number of total examples:', num_samples)
-print('Number of examples per label:',
+print('Número de exemplos:', num_samples)
+print('Número de exemplos por comando:',
       len(tf.io.gfile.listdir(str(data_dir / commands[0]))))
-print('Example file tensor:', filenames[0])
+print('Exemplo de arquivo Tensor:', filenames[0])
 
-# Nessa parte a base de dados será dividida em parte de teste, treinamento e validação
 train_files = filenames[:6400]
 val_files = filenames[6400: 6400 + 800]
-test_files = filenames[-800:]
+test_files = filenames[-700:]
 
-print('Training set size', len(train_files))
-print('Validation set size', len(val_files))
-print('Test set size', len(test_files))
+print('Tamanho do Conjunto de Treino', len(train_files))
+print('Tamanho do Conjunto de Validação', len(val_files))
+print('Tamanho do Conjunto de Teste', len(test_files))
 
-# Transformando os áudios para formas de ondas
 test_file = tf.io.read_file(DATASET_PATH + '/down/0a9f9af7_nohash_0.wav')
 test_audio, _ = tf.audio.decode_wav(contents=test_file)
 var = test_audio.shape
 
 
-# Função que pré-processa os arquivos de  áudio brutos
 def decode_audio(audio_binary):
     audio, _ = tf.audio.decode_wav(contents=audio_binary)
     return tf.squeeze(audio, axis=-1)
 
 
-# Função de criação dos rótulos dos áudios
 def get_label(file_path):
     parts = tf.strings.split(
         input=file_path,
@@ -69,7 +60,6 @@ def get_label(file_path):
     return parts[-2]
 
 
-# Função auxiliar
 def get_waveform_and_label(file_path):
     label = get_label(file_path)
     audio_binary = tf.io.read_file(file_path)
@@ -102,7 +92,6 @@ for i, (audio, label) in enumerate(waveform_ds.take(n)):
 plt.show()
 
 
-# Essa função apresenta a função de transformar as imagens anteriores em espectogramas
 def get_spectrogram(waveform):
     input_len = 16000
     waveform = waveform[:input_len]
@@ -125,11 +114,8 @@ for waveform, label in waveform_ds.take(1):
 print('Label:', label)
 print('Waveform shape:', waveform.shape)
 print('Spectrogram shape:', spectrogram.shape)
-print('Audio playback')
-display.display(display.Audio(waveform, rate=16000))
 
 
-# Exibe os espectogramas criados
 def plot_spectrogram(spectrogram, ax):
     if len(spectrogram.shape) > 2:
         assert len(spectrogram.shape) == 3
@@ -206,17 +192,12 @@ for spectrogram, _ in spectrogram_ds.take(1):
 print('Input shape:', input_shape)
 num_labels = len(commands)
 
-# Instantiate the `tf.keras.layers.Normalization` layer.
 norm_layer = layers.Normalization()
-# Fit the state of the layer to the spectrograms
-# with `Normalization.adapt`.
 norm_layer.adapt(data=spectrogram_ds.map(map_func=lambda spec, label: spec))
 
 model = models.Sequential([
     layers.Input(shape=input_shape),
-    # Downsample the input.
     layers.Resizing(32, 32),
-    # Normalize.
     norm_layer,
     layers.Conv2D(32, 3, activation='relu'),
     layers.Conv2D(64, 3, activation='relu'),
@@ -264,7 +245,7 @@ y_pred = np.argmax(model.predict(test_audio), axis=1)
 y_true = test_labels
 
 test_acc = sum(y_pred == y_true) / len(y_true)
-print(f'Test set accuracy: {test_acc:.0%}')
+print(f'Acurácia Conjunto de Teste: {test_acc:.0%}')
 
 confusion_mtx = tf.math.confusion_matrix(y_true, y_pred)
 plt.figure(figsize=(10, 8))
@@ -272,8 +253,8 @@ sns.heatmap(confusion_mtx,
             xticklabels=commands,
             yticklabels=commands,
             annot=True, fmt='g')
-plt.xlabel('Prediction')
-plt.ylabel('Label')
+plt.xlabel('Predição')
+plt.ylabel('Comando')
 plt.show()
 
 sample_fileD = data_dir/'down/1a4259c3_nohash_0.wav'
@@ -283,7 +264,7 @@ sample_ds = preprocess_dataset([str(sample_fileD)])
 for spectrogram, label in sample_ds.batch(1):
     prediction = model(spectrogram)
     plt.bar(commands, tf.nn.softmax(prediction[0]))
-    plt.title(f'Predictions for "{commands[label[0]]}"')
+    plt.title(f'Predição para "{commands[label[0]]}"')
     plt.show()
 
 print("\n=-=-=-=-=-=-=-=-=-=-=-=-")
@@ -294,7 +275,7 @@ sample_ds = preprocess_dataset([str(sample_fileG)])
 for spectrogram, label in sample_ds.batch(1):
     prediction = model(spectrogram)
     plt.bar(commands, tf.nn.softmax(prediction[0]))
-    plt.title(f'Predictions for "{commands[label[0]]}"')
+    plt.title(f'Predição para "{commands[label[0]]}"')
     plt.show()
 
 print("\n=-=-=-=-=-=-=-=-=-=-=-=-")
@@ -305,7 +286,7 @@ sample_ds = preprocess_dataset([str(sample_fileL)])
 for spectrogram, label in sample_ds.batch(1):
     prediction = model(spectrogram)
     plt.bar(commands, tf.nn.softmax(prediction[0]))
-    plt.title(f'Predictions for "{commands[label[0]]}"')
+    plt.title(f'Predição para "{commands[label[0]]}"')
     plt.show()
 
 print("\n=-=-=-=-=-=-=-=-=-=-=-=-")
@@ -316,7 +297,7 @@ sample_ds = preprocess_dataset([str(sample_fileN)])
 for spectrogram, label in sample_ds.batch(1):
     prediction = model(spectrogram)
     plt.bar(commands, tf.nn.softmax(prediction[0]))
-    plt.title(f'Predictions for "{commands[label[0]]}"')
+    plt.title(f'Predição para "{commands[label[0]]}"')
     plt.show()
 
 print("\n=-=-=-=-=-=-=-=-=-=-=-=-")
@@ -327,7 +308,7 @@ sample_ds = preprocess_dataset([str(sample_fileR)])
 for spectrogram, label in sample_ds.batch(1):
     prediction = model(spectrogram)
     plt.bar(commands, tf.nn.softmax(prediction[0]))
-    plt.title(f'Predictions for "{commands[label[0]]}"')
+    plt.title(f'Predição para "{commands[label[0]]}"')
     plt.show()
 
 print("\n=-=-=-=-=-=-=-=-=-=-=-=-")
@@ -338,7 +319,7 @@ sample_ds = preprocess_dataset([str(sample_fileS)])
 for spectrogram, label in sample_ds.batch(1):
     prediction = model(spectrogram)
     plt.bar(commands, tf.nn.softmax(prediction[0]))
-    plt.title(f'Predictions for "{commands[label[0]]}"')
+    plt.title(f'Predição para "{commands[label[0]]}"')
     plt.show()
 
 print("\n=-=-=-=-=-=-=-=-=-=-=-=-")
@@ -349,7 +330,7 @@ sample_ds = preprocess_dataset([str(sample_fileU)])
 for spectrogram, label in sample_ds.batch(1):
     prediction = model(spectrogram)
     plt.bar(commands, tf.nn.softmax(prediction[0]))
-    plt.title(f'Predictions for "{commands[label[0]]}"')
+    plt.title(f'Predição para "{commands[label[0]]}"')
     plt.show()
 
 print("\n=-=-=-=-=-=-=-=-=-=-=-=-")
@@ -360,5 +341,5 @@ sample_ds = preprocess_dataset([str(sample_fileY)])
 for spectrogram, label in sample_ds.batch(1):
     prediction = model(spectrogram)
     plt.bar(commands, tf.nn.softmax(prediction[0]))
-    plt.title(f'Predictions for "{commands[label[0]]}"')
+    plt.title(f'Predição para "{commands[label[0]]}"')
     plt.show()
